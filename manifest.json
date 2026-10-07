@@ -1,0 +1,19 @@
+{
+  "id": "zone_radar_gen2",
+  "name": "Zone Radar",
+  "version": "1.0.0",
+  "api": 2,
+  "games": [
+    "gen2"
+  ],
+  "entry": "main.lua",
+  "profile": "content",
+  "category": "TOOL",
+  "game_version": ">=0.0.0-0 <2.0.0",
+  "priority": 100,
+  "dependencies": [],
+  "optional_dependencies": [],
+  "conflicts": [],
+  "description": "Adds a Zone Radar to the Party menu to check wild grass encounters and levels for the current map in real-time.",
+  "github": "zingamau-dev/zone_radar_gen2"
+}
