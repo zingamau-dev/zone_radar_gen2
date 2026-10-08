@@ -3,66 +3,105 @@ local mod = ...
 mod.hooks:wrap("ui.start_menu.items", function(next, game, items)
   local result = next(game, items) or items
 
-  -- Inseriamo il pulsante sopra SAVE nel menu principale
   mod.ui.insertBefore(result, "SAVE", {
     label = "ZONE RADAR",
     onSelect = function()
+      -- Close the pause menu
       if game.stack then game.stack:pop() end
       
-      local mapId = game.world and game.world.map and game.world.map.id or "UNKNOWN"
+      -- Load the native TextBox
+      local ok_tb, TextBox = pcall(require, "src.render.TextBox")
+      if not ok_tb or not TextBox then return end
+
+      -- Safety check: if we are not in Gen 2, warn and exit
+      if not game.world then
+        game.stack:push(TextBox.new(game, "Zone Radar\nGen 2 Only."))
+        return
+      end
+      
+      -- Map ID
+      local mapId = game.world.map and game.world.map.id or "UNKNOWN"
       local targetId = mapId:gsub(" ", "_")
       
-      local ok, grassReg = pcall(function() return mod.content.encounters:get("grass") end)
-      
-      if not ok or not grassReg then
-        local ok_tb, TextBox = pcall(require, "src.render.TextBox")
-        if ok_tb and TextBox then game.stack:push(TextBox.new(game, "Registry error.")) end
-        return
-      end
-
-      local grassData = grassReg[targetId] or grassReg[mapId]
-      if not grassData and grassReg["ROUTE_30"] then
-         grassData = grassReg["ROUTE_30"]
-         targetId = "ROUTE_30 (Forced)"
-      end
-
-      if not grassData or not grassData.slots then
-        local ok_tb, TextBox = pcall(require, "src.render.TextBox")
-        if ok_tb and TextBox then game.stack:push(TextBox.new(game, targetId .. "\nNo grass data found.")) end
-        return
-      end
-
-      local daytime = "DAY"
-      if game.world and game.world.timeOfDay then
-        if type(game.world.timeOfDay) == "function" then
-          daytime = game.world:timeOfDay()
-        else
-          daytime = game.world.timeOfDay
+      -- Surf check (Gen 2)
+      local isSurfing = false
+      if game.world.player and game.world.player.spriteDef then
+        local spriteId = game.world.player.spriteDef.id
+        if spriteId == "SPRITE_SURF" or spriteId == "SPRITE_SURF_PIKA" then
+          isSurfing = true
         end
       end
-      if daytime == "DARK" then daytime = "NITE" end
-      if type(daytime) ~= "string" then daytime = "DAY" end
-
-      local slots = grassData.slots[daytime] or grassData.slots.DAY
-      if not slots then
-        local ok_tb, TextBox = pcall(require, "src.render.TextBox")
-        if ok_tb and TextBox then game.stack:push(TextBox.new(game, targetId .. "\nNo time data.")) end
+      
+      -- Fetch encounter data
+      local scanType = isSurfing and "water" or "grass"
+      local ok, encounterReg = pcall(function() return mod.content.encounters:get(scanType) end)
+      
+      if not ok or not encounterReg then
+        game.stack:push(TextBox.new(game, "Registry error."))
         return
       end
 
-      local text = targetId .. " (" .. daytime .. ")\n"
-      text = text .. "30%: " .. tostring(slots[1] and slots[1].species or "Empty") .. " L" .. tostring(slots[1] and slots[1].level or 0) .. "\f"
-      text = text .. "30%: " .. tostring(slots[2] and slots[2].species or "Empty") .. " L" .. tostring(slots[2] and slots[2].level or 0) .. "\n"
-      text = text .. "20%: " .. tostring(slots[3] and slots[3].species or "Empty") .. " L" .. tostring(slots[3] and slots[3].level or 0) .. "\f"
-      text = text .. "10%: " .. tostring(slots[4] and slots[4].species or "Empty") .. " L" .. tostring(slots[4] and slots[4].level or 0) .. "\n"
-      text = text .. "5%: " .. tostring(slots[5] and slots[5].species or "Empty") .. " L" .. tostring(slots[5] and slots[5].level or 0) .. "\f"
-      text = text .. "4%: " .. tostring(slots[6] and slots[6].species or "Empty") .. " L" .. tostring(slots[6] and slots[6].level or 0) .. "\n"
-      text = text .. "1%: " .. tostring(slots[7] and slots[7].species or "Empty") .. " L" .. tostring(slots[7] and slots[7].level or 0)
+      local encounterData = encounterReg[targetId] or encounterReg[mapId]
+      local baseSlots = encounterData and (encounterData.slots or encounterData)
 
-      local ok_tb, TextBox = pcall(require, "src.render.TextBox")
-      if ok_tb and TextBox then
-        game.stack:push(TextBox.new(game, text))
+      if not baseSlots then
+        game.stack:push(TextBox.new(game, mapId .. "\nNo POKéMON here."))
+        return
       end
+
+      -- Parse data and percentages based on time of day
+      local slots
+      local percs
+      local header = mapId
+
+      if isSurfing then
+        slots = baseSlots
+        header = header .. " - [SURF]\f"
+        percs = {"60%", "30%", "10%"} 
+      else
+        local daytime = "DAY"
+        if game.world.timeOfDay then
+          if type(game.world.timeOfDay) == "function" then
+            daytime = game.world:timeOfDay()
+          else
+            daytime = game.world.timeOfDay
+          end
+        end
+        
+        -- Normalize time strings
+        if daytime == "DARK" then daytime = "NITE" end
+        if type(daytime) ~= "string" then daytime = "DAY" end
+        
+        slots = baseSlots[daytime] or baseSlots.DAY
+        header = header .. " - [" .. daytime .. "]\f"
+        percs = {"30%", "30%", "20%", "10%", "5%", "4%", "1%"} 
+      end
+
+      if not slots or #slots == 0 then
+        game.stack:push(TextBox.new(game, mapId .. "\nData format error."))
+        return
+      end
+
+      -- Safe pagination for GameBoy hardware (max 2 lines)
+      local text = header
+      for i, slot in ipairs(slots) do
+        local perc = percs[i] or "?%"
+        local spec = slot.species or "Empty"
+        local lvl = slot.level or 0
+        
+        text = text .. perc .. ": " .. spec .. " L" .. lvl
+        
+        if i < #slots then
+          if i % 2 == 0 then
+            text = text .. "\f" -- New page
+          else
+            text = text .. "\n" -- New line
+          end
+        end
+      end
+
+      -- Print to screen
+      game.stack:push(TextBox.new(game, text))
     end,
   })
 

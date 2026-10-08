@@ -1,19 +1,20 @@
 -- Sharing metadata: read by tooling and the manager detail pane.
 return {
-  summary = "Check local wild encounters and exact percentages directly from your START menu.",
+  summary = "Check local wild encounters (Grass, Caves, and Surf) and exact percentages directly from your START menu.",
   author = "zingamau-dev",
   support = "https://github.com/zingamau-dev/zone_radar_gen2",
   tags = { "tool", "utility", "encounters", "ui" },
   compat = { modApi = 2, games = { "gen2" } },
   differences = {
     added = {
-      "ZONE RADAR option added to the game's main START menu"
+      "Contextual scanning: automatically reads water tables when surfing, and grass/cave tables when walking"
     },
     changed = {
-      "[1.1.0] Moved the radar trigger from the Party Pokémon submenu to the main START menu for better game design flow."
+      "[1.2.0] Implemented safe text pagination (max 2 lines per page) to prevent text overflow issues",
+      "[1.1.0] Moved the radar trigger from the Party Pokémon submenu to the main START menu for better game design flow"
     },
     known = {
-      "The radar currently only scans for grass/cave encounters, ignoring water/fishing spawns."
+      "Fishing tables are currently not scanned"
     }
   }
 }
