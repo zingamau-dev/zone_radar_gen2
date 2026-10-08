@@ -1,10 +1,10 @@
 local mod = ...
 
-mod.hooks:wrap("ui.party.submenu", function(next, game, items, mon, ctx)
-  local result = next(game, items, mon, ctx) or items
-  if ctx and ctx.battle then return result end
+mod.hooks:wrap("ui.start_menu.items", function(next, game, items)
+  local result = next(game, items) or items
 
-  mod.ui.insertBefore(result, "CANCEL", {
+  -- Inseriamo il pulsante sopra SAVE nel menu principale
+  mod.ui.insertBefore(result, "SAVE", {
     label = "ZONE RADAR",
     onSelect = function()
       if game.stack then game.stack:pop() end
